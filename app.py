@@ -1,10 +1,13 @@
+import logging
 import os
+import traceback
 from flask import Flask, jsonify, render_template
 from sheets import load_grid, load_payouts
 from ncaa_data import fetch_tournament_games
 from scoring import score_game, build_leaderboard
 
 app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
 SHEET_ID = os.environ.get("NCAA_SHEET_ID", "")
 
@@ -20,11 +23,13 @@ def api_board():
         grid = load_grid(SHEET_ID)
         payouts = load_payouts(SHEET_ID)
     except Exception as e:
+        logging.error("Sheet error: %s\n%s", e, traceback.format_exc())
         return jsonify({"error": f"Sheet error: {e}"}), 500
 
     try:
         games = fetch_tournament_games()
     except Exception as e:
+        logging.error("ESPN error: %s\n%s", e, traceback.format_exc())
         return jsonify({"error": f"ESPN error: {e}"}), 500
 
     # Score completed games
