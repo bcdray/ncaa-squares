@@ -25,8 +25,20 @@ def get_client(credentials_file="credentials.json"):
     return gspread.authorize(creds)
 
 
+GRID_TAB = os.environ.get("NCAA_GRID_TAB", "2023  Men's NCAA Squares Pool")
+
+DEFAULT_PAYOUTS = {
+    "Round of 64": 5,
+    "Round of 32": 10,
+    "Sweet 16": 20,
+    "Elite 8": 40,
+    "Final Four": 75,
+    "Championship": 150,
+}
+
+
 def load_grid(spreadsheet_id):
-    """Read the 10x10 grid from the 'Grid' tab.
+    """Read the 10x10 grid tab.
 
     Returns a dict mapping (winner_digit, loser_digit) -> participant name.
     Row 1 has digits 0-9 in columns B-K (winner's last digit).
@@ -34,7 +46,7 @@ def load_grid(spreadsheet_id):
     Cells B2:K11 have participant names.
     """
     client = get_client()
-    sheet = client.open_by_key(spreadsheet_id).worksheet("Grid")
+    sheet = client.open_by_key(spreadsheet_id).worksheet(GRID_TAB)
     rows = sheet.get_all_values()
 
     grid = {}
@@ -48,21 +60,23 @@ def load_grid(spreadsheet_id):
 
 
 def load_payouts(spreadsheet_id):
-    """Read the 'Config' tab for per-round payouts.
+    """Load payouts. Tries 'Config' tab, falls back to defaults."""
+    try:
+        client = get_client()
+        sheet = client.open_by_key(spreadsheet_id).worksheet("Config")
+        rows = sheet.get_all_values()
 
-    Returns a dict mapping round name -> dollar amount (int).
-    """
-    client = get_client()
-    sheet = client.open_by_key(spreadsheet_id).worksheet("Config")
-    rows = sheet.get_all_values()
-
-    payouts = {}
-    for row in rows[1:]:  # skip header
-        if len(row) >= 2 and row[0].strip():
-            round_name = row[0].strip()
-            payout_str = row[1].strip().replace("$", "").replace(",", "")
-            try:
-                payouts[round_name] = int(payout_str)
-            except ValueError:
-                pass
-    return payouts
+        payouts = {}
+        for row in rows[1:]:
+            if len(row) >= 2 and row[0].strip():
+                round_name = row[0].strip()
+                payout_str = row[1].strip().replace("$", "").replace(",", "")
+                try:
+                    payouts[round_name] = int(payout_str)
+                except ValueError:
+                    pass
+        if payouts:
+            return payouts
+    except Exception:
+        pass
+    return DEFAULT_PAYOUTS.copy()
