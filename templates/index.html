@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCAA Tournament Squares</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>NCAA Tournament Squares</h1>
+        <div class="subtitle">March Madness 2026</div>
+        <div class="updated" id="updated"></div>
+    </header>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="grid">Grid</button>
+        <button class="tab-btn" data-tab="results">Results</button>
+        <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
+    </div>
+
+    <div id="grid" class="tab-content active">
+        <div class="grid-label">Winner's Last Digit &rarr; &nbsp; | &nbsp; &darr; Loser's Last Digit</div>
+        <div class="grid-wrapper">
+            <table class="squares-grid" id="squares-table">
+                <thead><tr><th class="corner">W&#x2192; / L&#x2193;</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="results" class="tab-content">
+        <div id="live-section"></div>
+        <div id="results-section"></div>
+    </div>
+
+    <div id="leaderboard" class="tab-content">
+        <table class="leaderboard-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Winnings</th>
+                    <th>Wins</th>
+                </tr>
+            </thead>
+            <tbody id="lb-body"></tbody>
+        </table>
+    </div>
+
+    <div id="loading" class="status-msg">Loading...</div>
+</div>
+
+<script>
+// Tabs
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+});
+
+// Color assignment for grid cells
+const COLORS = [
+    '#2d4a3e', '#3d2d4a', '#4a3d2d', '#2d3d4a', '#4a2d3d',
+    '#3d4a2d', '#2d4a4a', '#4a2d2d', '#2d2d4a', '#4a4a2d',
+    '#3a4a3d', '#4a3a3d', '#3d3a4a', '#3a3d4a', '#4a3d3a',
+];
+
+function nameColor(name, names) {
+    const idx = names.indexOf(name);
+    return idx >= 0 ? COLORS[idx % COLORS.length] : '#16213e';
+}
+
+function renderGrid(grid, scoredGames, allNames) {
+    const table = document.getElementById('squares-table');
+    // Build set of winning squares
+    const winSquares = new Set();
+    scoredGames.forEach(g => winSquares.add(g.winner_digit + ',' + g.loser_digit));
+
+    // Header row
+    let headerHTML = '<tr><th class="corner">W&#x2192; / L&#x2193;</th>';
+    for (let c = 0; c < 10; c++) {
+        headerHTML += `<th>${c}</th>`;
+    }
+    headerHTML += '</tr>';
+    table.querySelector('thead').innerHTML = headerHTML;
+
+    // Body rows
+    let bodyHTML = '';
+    for (let r = 0; r < 10; r++) {
+        bodyHTML += `<tr><th class="row-header">${r}</th>`;
+        for (let c = 0; c < 10; c++) {
+            const name = grid[r][c] || '';
+            const isWinner = winSquares.has(c + ',' + r);
+            const cls = isWinner ? ' class="winner-cell"' : '';
+            const bg = !isWinner && name ? ` style="background:${nameColor(name, allNames)}"` : '';
+            bodyHTML += `<td${cls}${bg}>${name}</td>`;
+        }
+        bodyHTML += '</tr>';
+    }
+    table.querySelector('tbody').innerHTML = bodyHTML;
+}
+
+function renderResults(scoredGames, liveGames) {
+    const liveEl = document.getElementById('live-section');
+    const resultsEl = document.getElementById('results-section');
+
+    // Live games
+    if (liveGames.length > 0) {
+        let html = '<div class="round-group"><div class="round-header">Live Games <span class="live-badge">LIVE</span></div>';
+        liveGames.forEach(g => {
+            const t = g.teams;
+            html += `<div class="game-card live-card">
+                <div class="game-score"><div class="teams">
+                    <span class="seed">(${t[0].seed})</span> <strong>${t[0].name}</strong>
+                    <span class="score">${t[0].score}</span> -
+                    <span class="score">${t[1].score}</span>
+                    <strong>${t[1].name}</strong> <span class="seed">(${t[1].seed})</span>
+                </div><div style="color:#888;font-size:0.8rem">${g.status}</div></div>
+            </div>`;
+        });
+        html += '</div>';
+        liveEl.innerHTML = html;
+    } else {
+        liveEl.innerHTML = '';
+    }
+
+    // Completed games grouped by round
+    const rounds = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship'];
+    const byRound = {};
+    scoredGames.forEach(g => {
+        if (!byRound[g.round]) byRound[g.round] = [];
+        byRound[g.round].push(g);
+    });
+
+    let html = '';
+    rounds.forEach(round => {
+        const games = byRound[round];
+        if (!games) return;
+        html += `<div class="round-group"><div class="round-header">${round}</div>`;
+        games.forEach(g => {
+            html += `<div class="game-card">
+                <div class="game-score"><div class="teams">
+                    <span class="seed">(${g.winner_seed})</span>
+                    <span class="winner-name">${g.winner_team}</span>
+                    <span class="score">${g.winner_score}</span> -
+                    <span class="score" style="color:#999">${g.loser_score}</span>
+                    <span class="loser-name">${g.loser_team}</span>
+                    <span class="seed">(${g.loser_seed})</span>
+                </div><div style="color:#666;font-size:0.8rem">${g.date}</div></div>
+                <div class="game-result">
+                    <div class="digits">W:${g.winner_digit} / L:${g.loser_digit}</div>
+                    <div class="square-owner">${g.square_winner}</div>
+                    <div class="payout">$${g.payout}</div>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+    });
+
+    if (!html) {
+        html = '<div class="status-msg">No completed games yet</div>';
+    }
+    resultsEl.innerHTML = html;
+}
+
+function renderLeaderboard(leaderboard) {
+    const body = document.getElementById('lb-body');
+    if (leaderboard.length === 0) {
+        body.innerHTML = '<tr><td colspan="4" class="status-msg">No results yet</td></tr>';
+        return;
+    }
+    let html = '';
+    leaderboard.forEach((p, i) => {
+        html += `<tr>
+            <td class="lb-rank">${i + 1}</td>
+            <td class="lb-name">${p.name}</td>
+            <td class="lb-winnings">$${p.total_winnings}</td>
+            <td class="lb-wins">${p.wins}</td>
+        </tr>`;
+    });
+    body.innerHTML = html;
+}
+
+async function loadData() {
+    try {
+        const resp = await fetch('/api/board');
+        const data = await resp.json();
+
+        if (data.error) {
+            document.getElementById('loading').innerHTML = `<span class="error">${data.error}</span>`;
+            return;
+        }
+
+        document.getElementById('loading').style.display = 'none';
+
+        // Unique names for color mapping
+        const allNames = [...new Set(data.grid.flat().filter(n => n))];
+
+        renderGrid(data.grid, data.scored_games, allNames);
+        renderResults(data.scored_games, data.live_games);
+        renderLeaderboard(data.leaderboard);
+
+        const now = new Date();
+        document.getElementById('updated').textContent =
+            'Updated ' + now.toLocaleTimeString();
+
+    } catch (err) {
+        document.getElementById('loading').innerHTML =
+            `<span class="error">Failed to load data</span>`;
+    }
+}
+
+loadData();
+setInterval(loadData, 60000);
+</script>
+</body>
+</html>
