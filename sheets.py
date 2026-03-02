@@ -25,7 +25,7 @@ def get_client(credentials_file="credentials.json"):
     return gspread.authorize(creds)
 
 
-GRID_TAB = os.environ.get("NCAA_GRID_TAB", "2023  Men's NCAA Squares Pool")
+GRID_TAB = os.environ.get("NCAA_GRID_TAB", "Sheet1")
 
 DEFAULT_PAYOUTS = {
     "Round of 64": 5,
