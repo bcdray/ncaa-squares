@@ -41,21 +41,47 @@ def load_grid(spreadsheet_id):
     """Read the 10x10 grid tab.
 
     Returns a dict mapping (winner_digit, loser_digit) -> participant name.
-    Row 1 has digits 0-9 in columns B-K (winner's last digit).
-    Column A rows 2-11 have digits 0-9 (loser's last digit).
-    Cells B2:K11 have participant names.
+
+    Handles the actual sheet layout:
+      Row 3 (index 2): winner digits in cols C-L (indices 2-11)
+      Rows 4-13 (indices 3-12): loser digit in col B (index 1), names in cols C-L (indices 2-11)
+    The header row is found dynamically by scanning for the row where
+    cols 2-11 all contain single digits.
     """
     client = get_client()
     sheet = client.open_by_key(spreadsheet_id).worksheet(GRID_TAB)
     rows = sheet.get_all_values()
 
+    # Find the header row containing winner digits
+    header_row_idx = None
+    for i, row in enumerate(rows):
+        if len(row) >= 12:
+            try:
+                digits = [int(row[c]) for c in range(2, 12)]
+                if len(digits) == 10:
+                    header_row_idx = i
+                    break
+            except (ValueError, IndexError):
+                continue
+
+    if header_row_idx is None:
+        return {}
+
+    winner_digits = [int(rows[header_row_idx][c]) for c in range(2, 12)]
+
     grid = {}
-    for r in range(1, 11):  # rows 2-11 (0-indexed 1-10)
-        loser_digit = int(rows[r][0])
-        for c in range(1, 11):  # columns B-K (0-indexed 1-10)
-            winner_digit = int(rows[0][c])
-            name = rows[r][c].strip()
+    for row in rows[header_row_idx + 1:]:
+        if len(row) < 12:
+            continue
+        try:
+            loser_digit = int(row[1])
+        except (ValueError, IndexError):
+            continue
+        for j, c in enumerate(range(2, 12)):
+            winner_digit = winner_digits[j]
+            name = row[c].strip() if c < len(row) else ""
             grid[(winner_digit, loser_digit)] = name
+
     return grid
 
 
