@@ -7,6 +7,10 @@ def score_game(game, grid, payouts):
     if game["state"] != "post" or not game["winner"] or not game["loser"]:
         return None
 
+    # Skip First Four play-in games and any game with no payout
+    if game["round"] not in payouts:
+        return None
+
     winner_score = game["winner"]["score"]
     loser_score = game["loser"]["score"]
     winner_digit = winner_score % 10
