@@ -85,20 +85,40 @@ def load_grid(spreadsheet_id):
     return grid
 
 
+ROUND_CODE_MAP = {
+    "64": "Round of 64",
+    "32": "Round of 32",
+    "16": "Sweet 16",
+    "8":  "Elite 8",
+    "4":  "Final Four",
+    "2":  "Championship",
+}
+
+
 def load_payouts(spreadsheet_id):
-    """Load payouts. Tries 'Config' tab, falls back to defaults."""
+    """Load payouts from the 'Payouts' tab.
+
+    The sheet has rows like: GAME, Round (numeric), WINNER, SCORE, LOSER, SCORE, POOL WINNER, PRIZE MONEY
+    Round codes: 64=Round of 64, 32=Round of 32, 16=Sweet 16, 8=Elite 8, 4=Final Four, 2=Championship
+    Payout is in col H (index 7), e.g. "$25".
+    Returns the payout for each round (all games in a round pay the same amount).
+    """
     try:
         client = get_client()
-        sheet = client.open_by_key(spreadsheet_id).worksheet("Config")
+        sheet = client.open_by_key(spreadsheet_id).worksheet("Payouts")
         rows = sheet.get_all_values()
 
         payouts = {}
-        for row in rows[1:]:
-            if len(row) >= 2 and row[0].strip():
-                round_name = row[0].strip()
-                payout_str = row[1].strip().replace("$", "").replace(",", "")
+        for row in rows:
+            if len(row) < 8:
+                continue
+            round_code = row[1].strip()
+            payout_str = row[7].strip().replace("$", "").replace(",", "").strip()
+            if round_code in ROUND_CODE_MAP and payout_str:
                 try:
-                    payouts[round_name] = int(payout_str)
+                    round_name = ROUND_CODE_MAP[round_code]
+                    if round_name not in payouts:
+                        payouts[round_name] = int(payout_str)
                 except ValueError:
                     pass
         if payouts:
