@@ -103,11 +103,24 @@ def load_payouts(spreadsheet_id):
     Payout is in col H (index 7), e.g. "$25".
     Returns the payout for each round (all games in a round pay the same amount).
     """
+    import logging
     try:
         client = get_client()
-        sheet = client.open_by_key(spreadsheet_id).worksheet("Payouts")
-        rows = sheet.get_all_values()
+        spreadsheet = client.open_by_key(spreadsheet_id)
 
+        # Find the Payouts tab (case-insensitive)
+        sheet = None
+        all_tabs = [ws.title for ws in spreadsheet.worksheets()]
+        logging.info("Available tabs: %s", all_tabs)
+        for title in all_tabs:
+            if title.strip().lower() == "payouts":
+                sheet = spreadsheet.worksheet(title)
+                break
+        if sheet is None:
+            logging.warning("No 'Payouts' tab found. Available: %s", all_tabs)
+            return DEFAULT_PAYOUTS.copy()
+
+        rows = sheet.get_all_values()
         payouts = {}
         for row in rows:
             if len(row) < 8:
@@ -118,11 +131,13 @@ def load_payouts(spreadsheet_id):
                 try:
                     round_name = ROUND_CODE_MAP[round_code]
                     if round_name not in payouts:
-                        payouts[round_name] = int(payout_str)
+                        payouts[round_name] = int(float(payout_str))
                 except ValueError:
                     pass
         if payouts:
+            logging.info("Loaded payouts from sheet: %s", payouts)
             return payouts
-    except Exception:
-        pass
+        logging.warning("Payouts tab found but no valid rows parsed")
+    except Exception as e:
+        logging.error("load_payouts error: %s", e, exc_info=True)
     return DEFAULT_PAYOUTS.copy()
