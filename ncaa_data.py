@@ -15,28 +15,31 @@ ROUND_MAP = {
 
 
 def _parse_round(event):
-    """Extract round name from ESPN event data."""
-    # Check notes for round info
-    for note in event.get("notes", []):
+    """Extract round name from ESPN event data.
+
+    Notes are on the competition object, not the event. Check specific
+    round keywords before the generic 'championship' string, which appears
+    in every NCAA tournament headline.
+    """
+    competition = event.get("competitions", [{}])[0]
+    notes = competition.get("notes", []) or event.get("notes", [])
+
+    for note in notes:
         headline = note.get("headline", "").lower()
-        if "championship" in headline or "national championship" in headline:
-            return "Championship"
-        if "final four" in headline or "semifinal" in headline:
-            return "Final Four"
-        if "elite" in headline:
-            return "Elite 8"
-        if "sweet" in headline:
-            return "Sweet 16"
-        if "2nd round" in headline or "second round" in headline or "round of 32" in headline:
-            return "Round of 32"
+        # Check specific rounds first before the generic "championship" string
         if "1st round" in headline or "first round" in headline or "round of 64" in headline:
             return "Round of 64"
-
-    # Fallback: check season type and round number
-    season = event.get("season", {})
-    slug = season.get("slug", "")
-    if "post" in slug or "tournament" in slug:
-        pass
+        if "2nd round" in headline or "second round" in headline or "round of 32" in headline:
+            return "Round of 32"
+        if "sweet" in headline:
+            return "Sweet 16"
+        if "elite" in headline:
+            return "Elite 8"
+        if "final four" in headline or "semifinal" in headline:
+            return "Final Four"
+        # Only match championship if no round qualifier is present
+        if "championship" in headline:
+            return "Championship"
 
     return "Tournament"
 
