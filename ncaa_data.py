@@ -26,6 +26,9 @@ def _parse_round(event):
 
     for note in notes:
         headline = note.get("headline", "").lower()
+        # First Four play-in games — must check before "first round"
+        if "first four" in headline:
+            return "First Four"
         # Check specific rounds first before the generic "championship" string
         if "1st round" in headline or "first round" in headline or "round of 64" in headline:
             return "Round of 64"
